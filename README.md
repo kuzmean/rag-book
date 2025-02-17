@@ -40,7 +40,7 @@ Telegram-бот с технологией RAG (Retrieval-Augmented Generation) �
 ### 🛠 Установка
 ```bash
 # Клонировать репозиторий
-git clone https://github.com/yourusername/rag-bot-gorz.git
+git clone https://github.com/yourusername/rag-bot.git
 cd rag-bot-gorz
 
 # Создать виртуальное окружение
