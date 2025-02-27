@@ -7,8 +7,8 @@ from langchain.memory import ConversationBufferWindowMemory  # new import
 
 class RAGSystem:
     def __init__(self, model_name: str):
-        self.llm = ChatOpenAI(temperature=0, model_name=model_name)
-        self.embeddings = OpenAIEmbeddings()
+        self.llm = ChatOpenAI(temperature=0, model_name=model_name, base_url="https://api.proxyapi.ru/openai/v1")
+        self.embeddings = OpenAIEmbeddings(base_url="https://api.proxyapi.ru/openai/v1")
         self.memory = ConversationBufferWindowMemory(k=2)  # optimized memory from LangChain
         
     def initialize_from_docs(self, documents):
