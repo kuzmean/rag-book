@@ -7,8 +7,8 @@ from langchain.memory import ConversationBufferWindowMemory  # new import
 
 class RAGSystem:
     def __init__(self, model_name: str):
-        self.llm = ChatOpenAI(temperature=0, model_name=model_name)
-        self.embeddings = OpenAIEmbeddings()
+        self.llm = ChatOpenAI(temperature=0, model_name=model_name, base_url="https://api.proxyapi.ru/openai/v1")
+        self.embeddings = OpenAIEmbeddings(base_url="https://api.proxyapi.ru/openai/v1")
         self.memory = ConversationBufferWindowMemory(k=2)  # optimized memory from LangChain
         
     def initialize_from_docs(self, documents):
@@ -19,7 +19,15 @@ class RAGSystem:
             Answer the user's question using only the provided context. 
             If the context does not contain enough information to answer the question, say: 
             "I cannot answer that question because the provided context does not contain relevant information."
+            In this case, do NOT include any chapter or page information.
             Do not use any internal knowledge or information outside the provided context.
+            Only if you CAN answer the question, after your answer, ON A NEW LINE, include the chapter and page info in this format:
+            [Глава X, Страница Y]
+            For example:
+            [Глава 1, Страница 27]   
+            ALWAYS include at least one direct quote from the text in your answer. Format quotes like this:
+            «цитата из текста»
+            This is extremely important - your answer MUST include direct quotes from the text!
             Always respond in Russian.
             Conversation History: {history}
             Context: {context}
@@ -42,6 +50,22 @@ class RAGSystem:
         history = self.memory.load_memory_variables({}).get("history", "")
         response = self.retrieval_chain.invoke({'input': question, 'history': history})
         answer = response.get('answer', 'Не удалось получить ответ от системы.')
+        
+        # Собираем информацию об источниках
+        sources = []
+        for doc in response.get('source_documents', []):
+            chapter = doc.metadata.get('chapter', 'Неизвестная глава')
+            page = doc.metadata.get('page', 'Неизвестная страница')
+            # Форматирование вывода с ясным указанием главы и страницы
+            sources.append(f"• {chapter}, {page}")
+        
+        # Убираем дубликаты
+        unique_sources = list(set(sources))[:3]  # Ограничиваем тремя источниками
+        
+        # Добавляем источники к ответу
+        if unique_sources:
+            answer += "\n\n📚 Дополнительные источники:\n" + "\n".join(unique_sources)
+        
         # Update memory with the interaction
         self.memory.chat_memory.add_user_message(question)
         self.memory.chat_memory.add_ai_message(answer)
