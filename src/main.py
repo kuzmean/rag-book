@@ -5,7 +5,7 @@ from bot import RAGBot
 
 def main():
     # Инициализация RAG системы
-    pdf_file = 'docs/Горц А. - Нематериальное.pdf'
+    pdf_file = 'docs/История философии.pdf'
     rag_system = RAGSystem(MODEL_NAME)
     vectorstore = DocumentProcessor.process_pdf(pdf_file, rag_system.embeddings)
     
