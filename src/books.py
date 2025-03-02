@@ -52,6 +52,16 @@ BOOK_METADATA = {
                 "end_page": 231
             },
             {
+                "title": "Глава 10. Средний платонизм",
+                "start_page": 232,
+                "end_page": 239
+            },
+            {
+                "title": "Глава 11. Философия в Риме",
+                "start_page": 240,
+                "end_page": 252
+            },
+            {
                 "title": "Глава 12. Неоплатонизм",
                 "start_page": 253,
                 "end_page": 270

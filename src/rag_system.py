@@ -13,7 +13,18 @@ class RAGSystem:
         
     def initialize_from_docs(self, documents):
         self.db = documents  # теперь documents это уже готовое векторное хранилище
-        self.retriever = self.db.as_retriever(search_kwargs={"k": 5})
+        self.retriever = self.db.as_retriever(search_kwargs={"k": 3})  # Увеличиваем до 3 документов
+        
+        # Определяем функцию для форматирования документов с информацией об источниках
+        def format_docs(docs):
+            formatted_docs = []
+            for doc in docs:
+                chapter = doc.metadata.get('chapter', 'Неизвестная глава')
+                page = doc.metadata.get('page', 'Неизвестная страница')
+                # Добавляем метаданные в начало каждого документа
+                formatted_text = f"[{chapter}, {page}]\n\n{doc.page_content}\n\n---\n"
+                formatted_docs.append(formatted_text)
+            return "\n".join(formatted_docs)
         
         prompt = ChatPromptTemplate.from_template('''
             Answer the user's question using only the provided context. 
@@ -21,17 +32,32 @@ class RAGSystem:
             "I cannot answer that question because the provided context does not contain relevant information."
             In this case, do NOT include any chapter or page information.
             Do not use any internal knowledge or information outside the provided context.
-            Only if you CAN answer the question, after your answer, ON A NEW LINE, include the chapter and page info in this format:
-            [Глава X, Страница Y]
-            For example:
-            [Глава 1, Страница 27]   
+
             ALWAYS include at least one direct quote from the text in your answer. Format quotes like this:
             «цитата из текста»
-            This is extremely important - your answer MUST include direct quotes from the text!
+            
+            After your complete answer, ON A NEW LINE, list all sources you used in your answer:
+            
+            Источники:
+            [Глава X, Страницы Y, Z, W]
+            
+            Include ONLY sources that you actually quoted or referenced in your answer.
+            Group sources by chapter - if you cited multiple pages from the same chapter, list them in a single line.
+            For example, instead of:
+            [Глава 6. Аристотель и Ликей, 160]
+            [Глава 6. Аристотель и Ликей, 158]
+            [Глава 6. Аристотель и Ликей, 161]
+            
+            Write:
+            [Глава 6. Аристотель и Ликей, 158, 160, 161]
+            
+            List pages in ascending order. List each chapter on a separate line.
+            
             Always respond in Russian.
             Conversation History: {history}
             Context: {context}
             Question: {input}
+            Source Documents: {source_documents}
             Answer:
         ''')
         
@@ -40,6 +66,7 @@ class RAGSystem:
             prompt=prompt
         )
         
+        # Используем базовую версию без дополнительных параметров
         self.retrieval_chain = create_retrieval_chain(
             self.retriever, 
             document_chain
@@ -48,23 +75,30 @@ class RAGSystem:
     def get_answer(self, question: str) -> str:
         # Load conversation history from optimized memory
         history = self.memory.load_memory_variables({}).get("history", "")
-        response = self.retrieval_chain.invoke({'input': question, 'history': history})
+        
+        # Получаем документы напрямую
+        docs = self.retriever.get_relevant_documents(question)
+        
+        # Форматируем документы вручную
+        formatted_docs = []
+        for doc in docs:
+            chapter = doc.metadata.get('chapter')
+            page = doc.metadata.get('page')
+            source_id = f"[{chapter}, {page}]"
+            formatted_text = f"ИСТОЧНИК: Глава: {chapter} | Страница: {page}\n\n{doc.page_content}\n\n---\n"
+            formatted_docs.append(formatted_text)
+        
+        formatted_context = "\n".join(formatted_docs)
+        
+        # Вызываем цепочку с отформатированным контекстом
+        response = self.retrieval_chain.invoke({
+            'input': question, 
+            'history': history,
+            'context': formatted_context,  # Передаем отформатированный контекст напрямую
+            'source_documents': formatted_docs  # Добавляем исходные документы
+        })
+        
         answer = response.get('answer', 'Не удалось получить ответ от системы.')
-        
-        # Собираем информацию об источниках
-        sources = []
-        for doc in response.get('source_documents', []):
-            chapter = doc.metadata.get('chapter', 'Неизвестная глава')
-            page = doc.metadata.get('page', 'Неизвестная страница')
-            # Форматирование вывода с ясным указанием главы и страницы
-            sources.append(f"• {chapter}, {page}")
-        
-        # Убираем дубликаты
-        unique_sources = list(set(sources))[:3]  # Ограничиваем тремя источниками
-        
-        # Добавляем источники к ответу
-        if unique_sources:
-            answer += "\n\n📚 Дополнительные источники:\n" + "\n".join(unique_sources)
         
         # Update memory with the interaction
         self.memory.chat_memory.add_user_message(question)
